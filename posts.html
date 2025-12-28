@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Winter BANG 관련 정보글 및 링크 모음">
+    <title>정보글 | Winter BANG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 네비게이션 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">
+                <img src="src/title.svg" alt="Winter BANG" class="logo-svg">
+            </a>
+            <ul class="nav-menu">
+                <li><a href="index.html">메인</a></li>
+                <li><a href="transport.html">교통편</a></li>
+                <li><a href="venue.html">내부정보</a></li>
+                <li><a href="posts.html" class="active">정보글</a></li>
+            </ul>
+            <div class="hamburger" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main-content">
+        <!-- 페이지 헤더 -->
+        <header class="page-header">
+            <h1>📰 정보글</h1>
+            <p>공연 관련 뉴스 및 유용한 정보들을 확인하세요</p>
+        </header>
+
+        <section class="section">
+            <h2 class="section-title">최신 소식</h2>
+            <div id="posts-grid" class="posts-grid">
+                <!-- CSV에서 동적으로 로드됩니다 -->
+                <div class="loading-message">게시글을 불러오는 중...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <img src="src/title.svg" alt="Winter BANG" class="logo-svg">
+            </div>
+            <div class="footer-links">
+                <a href="index.html">메인</a>
+                <a href="transport.html">교통편</a>
+                <a href="venue.html">내부정보</a>
+                <a href="posts.html">정보글</a>
+            </div>
+            <p class="copyright">© 2026 Winter BANG. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMenu() {
+            document.querySelector('.nav-menu').classList.toggle('active');
+        }
+
+        // CSV 파싱 함수
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            const headers = lines[0].split(',');
+            const posts = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+
+                for (let char of lines[i]) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                values.push(current.trim());
+
+                if (values.length >= 5) {
+                    posts.push({
+                        title: values[0],
+                        url: values[1],
+                        preview: values[2],
+                        image: values[3],
+                        date: values[4]
+                    });
+                }
+            }
+            return posts;
+        }
+
+        // 날짜 포맷 함수
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            if (isNaN(date)) return dateStr;
+            return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        // 게시글 카드 생성 함수
+        function createPostCard(post) {
+            const imagePath = `src/image/posts/${post.image}`;
+            return `
+                <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="post-card">
+                    <img src="${imagePath}" alt="${post.title}" class="post-card-image" 
+                         onerror="this.outerHTML='<div class=\\'post-card-image placeholder-img\\'>📰</div>'">
+                    <div class="post-card-content">
+                        <h3>${post.title}</h3>
+                        <p>${post.preview}</p>
+                        <div class="post-card-meta">
+                            <span>${formatDate(post.date)}</span>
+                            <span class="post-card-link">자세히 보기 →</span>
+                        </div>
+                    </div>
+                </a>
+            `;
+        }
+
+        // CSV 로드 및 렌더링
+        async function loadPosts() {
+            const postsGrid = document.getElementById('posts-grid');
+            
+            try {
+                const response = await fetch('src/data/posts.csv');
+                if (!response.ok) throw new Error('CSV 파일을 찾을 수 없습니다.');
+                
+                const csvText = await response.text();
+                const posts = parseCSV(csvText);
+
+                if (posts.length === 0) {
+                    postsGrid.innerHTML = '<div class="no-posts">등록된 게시글이 없습니다.</div>';
+                    return;
+                }
+
+                // 날짜순 정렬 (최신순)
+                posts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                postsGrid.innerHTML = posts.map(post => createPostCard(post)).join('');
+            } catch (error) {
+                console.error('게시글 로드 실패:', error);
+                postsGrid.innerHTML = `
+                    <div class="error-message">
+                        게시글을 불러올 수 없습니다.<br>
+                        <small>src/data/posts.csv 파일을 확인해주세요.</small>
+                    </div>
+                `;
+            }
+        }
+
+        // 페이지 로드 시 실행
+        document.addEventListener('DOMContentLoaded', loadPosts);
+    </script>
+</body>
+</html>

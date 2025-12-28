@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Winter BANG 공연장 오시는 길 및 교통편 안내 - 대전 음악창작소">
+    <title>교통편 | Winter BANG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 네비게이션 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">
+                <img src="src/title.svg" alt="Winter BANG" class="logo-svg">
+            </a>
+            <ul class="nav-menu">
+                <li><a href="index.html">메인</a></li>
+                <li><a href="transport.html" class="active">교통편</a></li>
+                <li><a href="venue.html">내부정보</a></li>
+                <li><a href="posts.html">정보글</a></li>
+            </ul>
+            <div class="hamburger" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main-content">
+        <!-- 페이지 헤더 -->
+        <header class="page-header">
+            <h1>📍 오시는 길</h1>
+            <p>공연장까지 편리하게 찾아오세요</p>
+        </header>
+
+        <section class="section">
+            <!-- 지도 섹션 -->
+            <div class="map-container">
+                <!-- Google Maps 대전 음악창작소 좌표 -->
+                <iframe 
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3214.5!2d127.4304601!3d36.3262212!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMzbCsDE5JzM0LjQiTiAxMjfCsDI1JzQ5LjciRQ!5e0!3m2!1sko!2skr!4v1234567890"
+                    allowfullscreen="" 
+                    loading="lazy" 
+                    referrerpolicy="no-referrer-when-downgrade">
+                </iframe>
+                <div class="location-info">
+                    <h3>🏢 대전 음악창작소</h3>
+                    <p><strong>주소:</strong> 대전 중구 대흥로175번길 25 홍명프리존</p>
+                    <p><strong>GPS:</strong> 36.3262212, 127.4304601</p>
+                    <div class="map-buttons">
+                        <a href="https://map.naver.com/p/entry/place/1360550840" target="_blank" class="map-btn naver">네이버지도로 보기</a>
+                        <a href="https://map.kakao.com/?itemId=613163072" target="_blank" class="map-btn kakao">카카오맵으로 보기</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 교통편 리스트 -->
+            <h2 class="section-title">교통편 안내</h2>
+            <div class="transport-list">
+                <div class="transport-card">
+                    <h3>🚊 KTX / SRT</h3>
+                    <ul>
+                        <li>
+                            <strong>서울역 → 대전역</strong><br>
+                            KTX 약 1시간 소요
+                        </li>
+                        <li>
+                            <strong>수서역 → 대전역</strong><br>
+                            SRT 약 50분 소요
+                        </li>
+                        <li>
+                            <strong>서울역 → 서대전역</strong><br>
+                            KTX 약 1시간 20분 소요
+                        </li>
+                        <li>
+                            <strong>대전역에서 공연장까지</strong><br>
+                            도보 약 15분
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="transport-card">
+                    <h3>🚌 버스</h3>
+                    <ul>
+                        <li>
+                            <strong>서대전역</strong><br>
+                            서대전역네거리 314, 201, 608번<br>
+                            → 으능정이거리 하차 (약 20분 소요)
+                        </li>
+                        <li>
+                            <strong>대전역</strong><br>
+                            대전역 711번, 802번<br>
+                            → 대흥교 하차 (약 16분 소요)
+                        </li>
+                        <li>
+                            <strong>대전복합터미널</strong><br>
+                            복합터미널 4번, 201번<br>
+                            → 으능정이거리 하차 (약 20분 소요)
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="transport-card">
+                    <h3>🚗 자가용</h3>
+                    <ul>
+                        <li>
+                            <strong>네비게이션 검색</strong><br>
+                            "대전 음악창작소"
+                        </li>
+                        <li>
+                            <strong>주소 검색</strong><br>
+                            대흥로175번길 25
+                        </li>
+                        <li>
+                            <strong>건물명 검색</strong><br>
+                            홍명프리존
+                        </li>                        <li>
+                            <strong>주차</strong><br>
+                            근처 공영주차장 이용 권장
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="transport-card">
+                    <h3>ℹ️ 참고사항</h3>
+                    <ul>
+                        <li>
+                            <strong>공연 일시</strong><br>
+                            2026년 1월 17일 (토) PM 5:00
+                        </li>
+                        <li>
+                            <strong>티켓 가격</strong><br>
+                            입장권 15,000원
+                        </li>
+                        <li>
+                            <strong>대중교통 권장</strong><br>
+                            주차 공간이 협소할 수 있습니다
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <img src="src/title.svg" alt="Winter BANG" class="logo-svg">
+            </div>
+            <div class="footer-links">
+                <a href="index.html">메인</a>
+                <a href="transport.html">교통편</a>
+                <a href="venue.html">내부정보</a>
+                <a href="posts.html">정보글</a>
+            </div>
+            <p class="copyright">© 2026 Winter BANG. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMenu() {
+            document.querySelector('.nav-menu').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>
+
