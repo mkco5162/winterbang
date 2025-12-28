@@ -139,7 +139,10 @@
                 const response = await fetch('src/data/posts.csv');
                 if (!response.ok) throw new Error('CSV 파일을 찾을 수 없습니다.');
                 
-                const csvText = await response.text();
+                // ANSI(EUC-KR) 인코딩으로 텍스트 읽기
+                const buffer = await response.arrayBuffer();
+                const decoder = new TextDecoder('euc-kr');
+                const csvText = decoder.decode(buffer);
                 const posts = parseCSV(csvText);
 
                 if (posts.length === 0) {
