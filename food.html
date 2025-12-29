@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Winter BANG 공연장 주변 맛집 안내 - 대전 음악창작소">
+    <title>맛집 | Winter BANG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=eiykz9i91u"></script>
+    <script src="https://cdn.jsdelivr.net/gh/nicgirault/circularProgress@1.0.0/dist/circularProgress.min.js"></script>
+    <script>
+        // MarkerClustering 라이브러리 인라인 정의
+        var MarkerClustering = function(options) {
+            this._map = options.map || null;
+            this._markers = options.markers || [];
+            this._minClusterSize = options.minClusterSize || 2;
+            this._maxZoom = options.maxZoom || 13;
+            this._gridSize = options.gridSize || 100;
+            this._icons = options.icons || [];
+            this._indexGenerator = options.indexGenerator || [];
+            this._stylingFunction = options.stylingFunction || function() {};
+            this._disableClickZoom = options.disableClickZoom || false;
+            this._clusters = [];
+            this._mapMarkers = [];
+            this._listeners = [];
+            
+            if (this._map) {
+                this._init();
+            }
+        };
+        
+        MarkerClustering.prototype = {
+            _init: function() {
+                this._createClusters();
+                this._bindEvents();
+            },
+            
+            _bindEvents: function() {
+                var self = this;
+                var zoomListener = naver.maps.Event.addListener(this._map, 'zoom_changed', function() {
+                    if (self._map) self._redraw();
+                });
+                var dragListener = naver.maps.Event.addListener(this._map, 'dragend', function() {
+                    if (self._map) self._redraw();
+                });
+                this._listeners.push(zoomListener, dragListener);
+            },
+            
+            _removeEvents: function() {
+                for (var i = 0; i < this._listeners.length; i++) {
+                    naver.maps.Event.removeListener(this._listeners[i]);
+                }
+                this._listeners = [];
+            },
+            
+            _redraw: function() {
+                if (!this._map) return;
+                this._clearClusters();
+                this._createClusters();
+            },
+            
+            _clearClusters: function() {
+                for (var i = 0; i < this._mapMarkers.length; i++) {
+                    this._mapMarkers[i].setMap(null);
+                }
+                this._mapMarkers = [];
+                this._clusters = [];
+            },
+            
+            _createClusters: function() {
+                if (!this._map) return;
+                
+                var zoom = this._map.getZoom();
+                
+                if (zoom > this._maxZoom) {
+                    // 줌이 충분히 크면 개별 마커 표시
+                    for (var i = 0; i < this._markers.length; i++) {
+                        this._markers[i].setMap(this._map);
+                        this._mapMarkers.push(this._markers[i]);
+                    }
+                    return;
+                }
+                
+                // 마커 숨기기
+                for (var i = 0; i < this._markers.length; i++) {
+                    this._markers[i].setMap(null);
+                }
+                
+                var bounds = this._map.getBounds();
+                var projection = this._map.getProjection();
+                var clusters = [];
+                
+                for (var i = 0; i < this._markers.length; i++) {
+                    var marker = this._markers[i];
+                    var position = marker.getPosition();
+                    
+                    // bounds 체크를 건너뛰고 모든 마커 처리
+                    var pixelPos = projection.fromCoordToOffset(position);
+                    var clusterFound = false;
+                    
+                    for (var j = 0; j < clusters.length; j++) {
+                        var cluster = clusters[j];
+                        var clusterPixelPos = projection.fromCoordToOffset(cluster.center);
+                        var dx = pixelPos.x - clusterPixelPos.x;
+                        var dy = pixelPos.y - clusterPixelPos.y;
+                        var distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < this._gridSize) {
+                            cluster.markers.push(marker);
+                            clusterFound = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!clusterFound) {
+                        clusters.push({
+                            center: position,
+                            markers: [marker]
+                        });
+                    }
+                }
+                
+                this._clusters = clusters;
+                this._displayClusters();
+            },
+            
+            _displayClusters: function() {
+                var self = this;
+                if (!this._map) return;
+                
+                for (var i = 0; i < this._clusters.length; i++) {
+                    var cluster = this._clusters[i];
+                    
+                    if (cluster.markers.length < this._minClusterSize) {
+                        // 클러스터 크기가 작으면 개별 마커 표시
+                        for (var j = 0; j < cluster.markers.length; j++) {
+                            cluster.markers[j].setMap(this._map);
+                            this._mapMarkers.push(cluster.markers[j]);
+                        }
+                    } else {
+                        // 클러스터 마커 생성
+                        var count = cluster.markers.length;
+                        var iconIndex = this._getIconIndex(count);
+                        var icon = this._icons[iconIndex] || this._icons[0];
+                        
+                        var clusterMarker = new naver.maps.Marker({
+                            position: cluster.center,
+                            map: this._map,
+                            icon: icon
+                        });
+                        
+                        clusterMarker._cluster = cluster;
+                        this._stylingFunction(clusterMarker, count);
+                        
+                        if (!this._disableClickZoom) {
+                            (function(cm, cl, mapRef) {
+                                naver.maps.Event.addListener(cm, 'click', function() {
+                                    if (!mapRef._map) return;
+                                    var bounds = new naver.maps.LatLngBounds();
+                                    for (var k = 0; k < cl.markers.length; k++) {
+                                        bounds.extend(cl.markers[k].getPosition());
+                                    }
+                                    mapRef._map.fitBounds(bounds);
+                                });
+                            })(clusterMarker, cluster, self);
+                        }
+                        
+                        this._mapMarkers.push(clusterMarker);
+                    }
+                }
+            },
+            
+            _getIconIndex: function(count) {
+                for (var i = 0; i < this._indexGenerator.length; i++) {
+                    if (count < this._indexGenerator[i]) {
+                        return i;
+                    }
+                }
+                return this._icons.length - 1;
+            },
+            
+            setMap: function(map) {
+                if (map === null) {
+                    this._removeEvents();
+                    this._clearClusters();
+                    this._map = null;
+                } else {
+                    this._map = map;
+                    this._init();
+                }
+            },
+            
+            getMap: function() {
+                return this._map;
+            }
+        };
+    </script>
+    <style>
+        /* 지도 컨테이너 스타일 */
+        .food-map-container {
+            width: 100%;
+            height: 500px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin-bottom: 2rem;
+        }
+
+        #food-map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 정보창 스타일 */
+        .iw-container {
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 10px;
+            min-width: 200px;
+            max-width: 300px;
+        }
+
+        .iw-container h4 {
+            margin: 0 0 8px 0;
+            color: #e94560;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .iw-container p {
+            margin: 0 0 8px 0;
+            color: #eaeaea;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .iw-container .category {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #e94560;
+            color: white;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+
+        .iw-footer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .detail-btn {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #4CAF50;
+            color: white !important;
+            border-radius: 12px;
+            font-size: 11px;
+            text-decoration: none;
+            transition: background 0.3s ease;
+        }
+
+        .detail-btn:hover {
+            background: #45a049;
+            color: white !important;
+        }
+
+        /* 맛집 리스트 스타일 */
+        .food-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .food-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .food-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(233, 69, 96, 0.2);
+            border-color: var(--accent-color);
+        }
+
+        .food-card h4 {
+            color: var(--accent-color);
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .food-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .food-card .category-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--accent-color);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .food-card .distance {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        .food-card .food-desc {
+            color: var(--text-color);
+            font-size: 0.9rem;
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+
+        .card-footer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .detail-link {
+            color: #4CAF50 !important;
+            font-size: 0.85rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .detail-link:hover {
+            color: #45a049 !important;
+            text-decoration: underline;
+        }
+
+        /* 범례 */
+        .map-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .legend-marker {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-venue {
+            background: #4CAF50;
+        }
+
+        .legend-food {
+            background: #e94560;
+        }
+
+        /* 태그 필터 버튼 */
+        .tag-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tag-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-color);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .tag-btn:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .tag-btn.active {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+        }
+
+        /* 클러스터 스타일 */
+        .cluster-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e94560;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- 네비게이션 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">
+                <img src="src/title.svg" alt="Winter BANG" class="logo-svg">
+            </a>
+            <ul class="nav-menu">
+                <li><a href="index.html">메인</a></li>
+                <li><a href="transport.html">교통편</a></li>
+                <li><a href="venue.html">내부정보</a></li>
+                <li><a href="food.html" class="active">맛집</a></li>
+                <li><a href="posts.html">정보글</a></li>
+            </ul>
+            <div class="hamburger" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main-content">
+        <!-- 페이지 헤더 -->
+        <header class="page-header">
+            <h1>🍽️ 주변 맛집</h1>
+            <p>공연장 근처에서 맛있는 식사를 즐겨보세요</p>
+        </header>
+
+        <section class="section">
+            <h2 class="section-title">맛집 지도</h2>
+            
+            <!-- 태그 필터 -->
+            <div class="tag-filter" id="tag-filter">
+                <!-- 자바스크립트로 동적 생성 -->
+            </div>
+
+            <!-- 범례 -->
+            <div class="map-legend">
+                <div class="legend-item">
+                    <div class="legend-marker legend-venue"></div>
+                    <span>대전 음악창작소 (공연장)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-marker legend-food"></div>
+                    <span>추천 맛집</span>
+                </div>
+            </div>
+
+            <!-- 네이버 지도 -->
+            <div class="food-map-container">
+                <div id="food-map"></div>
+            </div>
+
+            <h2 class="section-title">맛집 리스트</h2>
+            <div class="food-list" id="food-list">
+                <!-- 자바스크립트로 동적 생성 -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <img src="src/title.svg" alt="Winter BANG" class="logo-svg">
+            </div>
+            <div class="footer-links">
+                <a href="index.html">메인</a>
+                <a href="transport.html">교통편</a>
+                <a href="venue.html">내부정보</a>
+                <a href="food.html">맛집</a>
+                <a href="posts.html">정보글</a>
+            </div>
+            <p class="copyright">© 2026 Winter BANG. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMenu() {
+            document.querySelector('.nav-menu').classList.toggle('active');
+        }
+
+        // 공연장 위치 (대전 음악창작소)
+        const venueLocation = new naver.maps.LatLng(36.3262212, 127.4304601);
+        const venueLat = 36.3262212;
+        const venueLng = 127.4304601;
+
+        // 거리 계산 함수 (Haversine formula)
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371000; // 지구 반경 (미터)
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // 거리를 문자열로 변환
+        function formatDistance(meters) {
+            if (meters < 1000) {
+                return `약 ${Math.round(meters)}m`;
+            } else {
+                return `약 ${(meters / 1000).toFixed(1)}km`;
+            }
+        }
+
+        // 맛집 데이터 (JSON 파일에서 가져온 정보)
+        // tag: 카테고리 (직접 분류), description: 가게 설명, placeid: 네이버 지도 장소 ID
+        const foodPlaces = [
+            { name: "고베규카츠 대전은행점", lat: 36.3276188, lng: 127.4270277, address: "대전광역시 중구 대종로480번길 7", tag: "일식", description: "", placeid: "1780792210" },
+            { name: "공주 얼큰이 칼국수 쭈꾸미", lat: 36.3279655, lng: 127.4268225, address: "대전광역시 중구 중교로73번길 33", tag: "한식", description: "", placeid: "20601293" },
+            { name: "길드커피", lat: 36.3443306, lng: 127.3842132, address: "대전광역시 서구 문정로48번길 52", tag: "카페", description: "", placeid: "1572181945" },
+            { name: "대전버거", lat: 36.3357918, lng: 127.4368521, address: "대전광역시 동구 동광장로 86", tag: "햄버거", description: "", placeid: "1361327777" },
+            { name: "동북아", lat: 36.3348015, lng: 127.4378124, address: "대전광역시 동구 철갑길 45", tag: "중식", description: "", placeid: "1557779077" },
+            { name: "땡큐베리머치", lat: 36.3259399, lng: 127.4251216, address: "대전광역시 중구 중교로 49", tag: "카페", description: "", placeid: "1191786029" },
+            { name: "모선 으능정이점", lat: 36.3263688, lng: 127.4295706, address: "대전광역시 중구 대종로460번길 38", tag: "일식", description: "", placeid: "2089270490" },
+            { name: "보문산호랭이", lat: 36.3269168, lng: 127.4287776, address: "대전광역시 중구 중교로 84-1", tag: "양식", description: "", placeid: "1380141772" },
+            { name: "비범", lat: 36.3359679, lng: 127.4372593, address: "대전광역시 동구 수향길 99", tag: "한식", description: "", placeid: "1617575885" },
+            { name: "뽀빠이", lat: 36.3271299, lng: 127.4280880, address: "대전광역시 중구 중앙로156번길 45", tag: "양식", description: "", placeid: "1572920229" },
+            { name: "성심당 대전역점", lat: 36.3323500, lng: 127.4342001, address: "대전광역시 동구 중앙로 215 대전역", tag: "성심당", description: "", placeid: "36731468" },
+            { name: "성심당 롯데백화점", lat: 36.3406490, lng: 127.3895366, address: "대전광역시 서구 계룡로 598 롯데백화점", tag: "성심당", description: "", placeid: "1170663310" },
+            { name: "성심당 본점", lat: 36.3277442, lng: 127.4272458, address: "대전광역시 중구 대종로480번길 15", tag: "성심당", description: "", placeid: "11871325" },
+            { name: "성심당 삐아또", lat: 36.3278141, lng: 127.4274116, address: "대전광역시 중구 중앙로156번길 28", tag: "양식", description: "", placeid: "16259064" },
+            { name: "성심당 DCC점", lat: 36.3749837, lng: 127.3916916, address: "대전광역시 유성구 엑스포로 107 대전컨벤션센터", tag: "성심당", description: "", placeid: "1977855888" },
+            { name: "성심당우동야", lat: 36.3277442, lng: 127.4272458, address: "대전광역시 중구 대종로480번길 15", tag: "일식", description: "", placeid: "20601419" },
+            { name: "수안초밥 대흥점", lat: 36.3263258, lng: 127.4258388, address: "대전광역시 중구 중앙로138번길 48 중앙로 센텀시티", tag: "일식", description: "", placeid: "1398705438" },
+            { name: "아뜨뜨 대전은행점", lat: 36.3272184, lng: 127.4287460, address: "대전광역시 중구 중앙로164번길 50", tag: "한식", description: "", placeid: "1081873211" },
+            { name: "아저씨돈까스", lat: 36.3281608, lng: 127.4279558, address: "대전광역시 중구 중앙로164번길 22-7", tag: "일식", description: "", placeid: "16045092" },
+            { name: "에그그 본점", lat: 36.3282120, lng: 127.4286737, address: "대전광역시 중구 대종로480번길 39", tag: "양식", description: "", placeid: "1726740061" },
+            { name: "연우동 은행동본점", lat: 36.3282016, lng: 127.4291842, address: "대전광역시 중구 대종로480번길 50", tag: "일식", description: "", placeid: "1639391056" },
+            { name: "옛터국수전문점 월평점", lat: 36.3535488, lng: 127.3569149, address: "대전광역시 서구 월평새뜸로4번길 69", tag: "한식", description: "", placeid: "16220617" },
+            { name: "오씨칼국수", lat: 36.3278257, lng: 127.4338757, address: "대전광역시 동구 중앙로204번길 75", tag: "한식", description: "", placeid: "15951083" },
+            { name: "초미당 세번째", lat: 36.3347245, lng: 127.4501493, address: "대전광역시 동구 백룡로 32-1", tag: "일식", description: "", placeid: "1341363538" },
+            { name: "카츠고메이", lat: 36.3443306, lng: 127.3842132, address: "대전광역시 서구 문정로48번길 52", tag: "일식", description: "", placeid: "1043015071" },
+            { name: "카페사나고", lat: 36.3265936, lng: 127.4278975, address: "대전광역시 중구 중교로 76", tag: "카페", description: "", placeid: "1236904226" },
+            { name: "태평소국밥", lat: 36.3267596, lng: 127.3954917, address: "대전광역시 중구 태평로 116", tag: "한식", description: "", placeid: "601999582" },
+            { name: "파란들식당", lat: 36.3257101, lng: 127.4164341, address: "대전광역시 중구 선화서로23번길 50", tag: "한식", description: "", placeid: "19833251" },
+            { name: "팔롬비니 은행점", lat: 36.3283598, lng: 127.4284484, address: "대전광역시 중구 중앙로164번길 21-6", tag: "카페", description: "", placeid: "1847921946" },
+            { name: "확장성", lat: 36.3265439, lng: 127.4276957, address: "대전광역시 중구 중교로 74", tag: "카페", description: "", placeid: "1048983558" },
+            { name: "희희초밥", lat: 36.3284823, lng: 127.4292128, address: "대전광역시 중구 중앙로170번길 27", tag: "일식", description: "", placeid: "1223607842" },
+            { name: "맘스터치 대전은행점", lat: 36.3270085, lng: 127.4281593, address: "대전광역시 중구 중앙로156번길 49", tag: "햄버거", description: "", placeid: "1059006260" },
+            { name: "롯데리아 대전중앙점", lat: 36.3286288, lng: 127.4250088, address: "대전광역시 중구 중앙로 139", tag: "햄버거", description: "", placeid: "11824854" }
+        ].map(place => ({
+            ...place,
+            distance: formatDistance(calculateDistance(venueLat, venueLng, place.lat, place.lng))
+        })).sort((a, b) => {
+            // 거리순 정렬
+            const distA = calculateDistance(venueLat, venueLng, a.lat, a.lng);
+            const distB = calculateDistance(venueLat, venueLng, b.lat, b.lng);
+            return distA - distB;
+        });
+
+        // 지도 초기화
+        const map = new naver.maps.Map('food-map', {
+            center: venueLocation,
+            zoom: 15,
+            zoomControl: true,
+            zoomControlOptions: {
+                position: naver.maps.Position.TOP_RIGHT
+            }
+        });
+
+        // 고유 태그 목록 추출
+        const allTags = [...new Set(foodPlaces.map(p => p.tag).filter(t => t))];
+        
+        // 태그 필터 버튼 생성
+        const tagFilterContainer = document.getElementById('tag-filter');
+        let currentTag = '전체';
+        
+        // 전체 버튼
+        const allBtn = document.createElement('button');
+        allBtn.className = 'tag-btn active';
+        allBtn.textContent = '전체';
+        allBtn.addEventListener('click', () => filterByTag('전체'));
+        tagFilterContainer.appendChild(allBtn);
+        
+        // 각 태그 버튼
+        allTags.forEach(tag => {
+            const btn = document.createElement('button');
+            btn.className = 'tag-btn';
+            btn.textContent = tag;
+            btn.addEventListener('click', () => filterByTag(tag));
+            tagFilterContainer.appendChild(btn);
+        });
+
+        // 공연장 마커 (녹색) - zIndex를 높게 설정하여 최상단에 표시
+        const venueMarker = new naver.maps.Marker({
+            position: venueLocation,
+            map: map,
+            zIndex: 1000,
+            icon: {
+                content: '<div style="background:#4CAF50;color:white;padding:8px 12px;border-radius:20px;font-weight:bold;font-size:12px;box-shadow:0 2px 10px rgba(0,0,0,0.3);white-space:nowrap;position:relative;z-index:1000;">🎵 대전 음악창작소</div>',
+                anchor: new naver.maps.Point(60, 20)
+            }
+        });
+
+        // 공연장 정보창
+        const venueInfoWindow = new naver.maps.InfoWindow({
+            content: `
+                <div class="iw-container">
+                    <h4>🎵 대전 음악창작소</h4>
+                    <p>Winter BANG 공연장<br>2026.01.17 PM 5:00</p>
+                    <span class="category">공연장</span>
+                </div>
+            `,
+            borderWidth: 0,
+            backgroundColor: 'transparent'
+        });
+
+        naver.maps.Event.addListener(venueMarker, 'click', function() {
+            if (venueInfoWindow.getMap()) {
+                venueInfoWindow.close();
+            } else {
+                venueInfoWindow.open(map, venueMarker);
+            }
+        });
+
+        // 맛집 마커 및 정보창 생성
+        const markers = [];
+        const infoWindows = [];
+        let markerCluster = null;
+
+        // 같은 위치의 마커들을 감지하여 오프셋 계산
+        const positionMap = {};
+        foodPlaces.forEach((place, index) => {
+            const key = `${place.lat.toFixed(6)}_${place.lng.toFixed(6)}`;
+            if (!positionMap[key]) {
+                positionMap[key] = [];
+            }
+            positionMap[key].push(index);
+        });
+
+        // 오프셋 계산 함수 (같은 위치에 여러 마커가 있을 때)
+        function getMarkerOffset(placeIndex) {
+            for (const key in positionMap) {
+                const indices = positionMap[key];
+                if (indices.includes(placeIndex) && indices.length > 1) {
+                    const posInGroup = indices.indexOf(placeIndex);
+                    const total = indices.length;
+                    // 위아래로 분산 (세로 오프셋)
+                    const offsetY = (posInGroup - (total - 1) / 2) * 35;
+                    return { x: 0, y: offsetY };
+                }
+            }
+            return { x: 0, y: 0 };
+        }
+
+        foodPlaces.forEach((place, index) => {
+            const position = new naver.maps.LatLng(place.lat, place.lng);
+            const offset = getMarkerOffset(index);
+            
+            // 마커 생성 (클러스터용으로 map은 나중에 설정)
+            const marker = new naver.maps.Marker({
+                position: position,
+                icon: {
+                    content: `<div style="background:#e94560;color:white;padding:6px 10px;border-radius:15px;font-weight:bold;font-size:11px;box-shadow:0 2px 10px rgba(0,0,0,0.3);white-space:nowrap;transform:translateY(${offset.y}px);">🍽️ ${place.name}</div>`,
+                    anchor: new naver.maps.Point(50, 15 - offset.y)
+                }
+            });
+            marker.tag = place.tag; // 태그 정보 저장
+            marker.placeIndex = index; // 인덱스 저장
+
+            // 정보창 생성
+            const descHtml = place.description ? `<p style="margin-top:8px;">${place.description}</p>` : '';
+            const detailBtn = place.placeid ? `<a href="https://map.naver.com/p/entry/place/${place.placeid}" target="_blank" class="detail-btn">상세정보</a>` : '';
+            const tagHtml = place.tag ? `<span class="category">${place.tag}</span>` : '';
+            
+            const infoWindow = new naver.maps.InfoWindow({
+                content: `
+                    <div class="iw-container">
+                        <h4>${place.name}</h4>
+                        <p>${place.address}</p>
+                        <p style="color:#a0a0a0;font-size:12px;">📍 공연장에서 ${place.distance}</p>
+                        ${descHtml}
+                        <div class="iw-footer">
+                            ${tagHtml}
+                            ${detailBtn}
+                        </div>
+                    </div>
+                `,
+                borderWidth: 0,
+                backgroundColor: 'transparent'
+            });
+
+            // 마커 클릭 이벤트
+            naver.maps.Event.addListener(marker, 'click', function() {
+                // 다른 정보창 모두 닫기
+                infoWindows.forEach(iw => iw.close());
+                venueInfoWindow.close();
+                
+                if (infoWindow.getMap()) {
+                    infoWindow.close();
+                } else {
+                    infoWindow.open(map, marker);
+                }
+            });
+
+            markers.push(marker);
+            infoWindows.push(infoWindow);
+        });
+
+        // 클러스터 아이콘 정의
+        const clusterIcon1 = {
+            content: '<div class="cluster-marker"></div>',
+            size: new naver.maps.Size(40, 40),
+            anchor: new naver.maps.Point(20, 20)
+        };
+        const clusterIcon2 = {
+            content: '<div class="cluster-marker" style="width:50px;height:50px;font-size:16px;"></div>',
+            size: new naver.maps.Size(50, 50),
+            anchor: new naver.maps.Point(25, 25)
+        };
+        const clusterIcon3 = {
+            content: '<div class="cluster-marker" style="width:60px;height:60px;font-size:18px;"></div>',
+            size: new naver.maps.Size(60, 60),
+            anchor: new naver.maps.Point(30, 30)
+        };
+
+        // 클러스터 생성 함수
+        function createCluster(markersToCluster) {
+            if (markerCluster) {
+                markerCluster.setMap(null);
+            }
+            
+            markerCluster = new MarkerClustering({
+                minClusterSize: 2,
+                maxZoom: 17,
+                map: map,
+                markers: markersToCluster,
+                disableClickZoom: false,
+                gridSize: 100,
+                icons: [clusterIcon1, clusterIcon2, clusterIcon3],
+                indexGenerator: [5, 10, 20],
+                stylingFunction: function(clusterMarker, count) {
+                    const element = clusterMarker.getElement();
+                    if (element) {
+                        const div = element.querySelector('div');
+                        if (div) {
+                            div.textContent = count;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 초기 클러스터 생성
+        createCluster(markers);
+
+        // 태그 필터 함수
+        function filterByTag(tag) {
+            currentTag = tag;
+            
+            // 버튼 상태 업데이트
+            document.querySelectorAll('.tag-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent === tag);
+            });
+            
+            // 정보창 모두 닫기
+            infoWindows.forEach(iw => iw.close());
+            venueInfoWindow.close();
+            
+            // 필터링된 마커
+            let filteredMarkers;
+            if (tag === '전체') {
+                filteredMarkers = markers;
+            } else {
+                filteredMarkers = markers.filter(m => m.tag === tag);
+            }
+            
+            // 클러스터 재생성
+            createCluster(filteredMarkers);
+            
+            // 맛집 리스트 필터링
+            renderFoodList(tag);
+        }
+
+        // 맛집 리스트 렌더링 함수
+        function renderFoodList(tag) {
+            const foodListContainer = document.getElementById('food-list');
+            foodListContainer.innerHTML = '';
+            
+            const filteredPlaces = tag === '전체' 
+                ? foodPlaces 
+                : foodPlaces.filter(p => p.tag === tag);
+            
+            filteredPlaces.forEach((place, idx) => {
+                const originalIndex = foodPlaces.indexOf(place);
+                const card = document.createElement('div');
+                card.className = 'food-card';
+                const descHtml = place.description ? `<p class="food-desc">${place.description}</p>` : '';
+                const tagHtml = place.tag ? `<span class="category-tag">${place.tag}</span>` : '';
+                const detailBtn = place.placeid ? `<a href="https://map.naver.com/p/entry/place/${place.placeid}" target="_blank" class="detail-link" onclick="event.stopPropagation();">상세정보 →</a>` : '';
+                
+                card.innerHTML = `
+                    <h4>🍽️ ${place.name}</h4>
+                    <p>${place.address}</p>
+                    ${descHtml}
+                    <div class="distance">📍 공연장에서 ${place.distance}</div>
+                    <div class="card-footer">
+                        ${tagHtml}
+                        ${detailBtn}
+                    </div>
+                `;
+                
+                // 카드 클릭 시 해당 마커로 이동 및 정보창 열기
+                card.addEventListener('click', () => {
+                    const position = new naver.maps.LatLng(place.lat, place.lng);
+                    map.setCenter(position);
+                    map.setZoom(17);
+                    
+                    // 다른 정보창 모두 닫기
+                    infoWindows.forEach(iw => iw.close());
+                    venueInfoWindow.close();
+                    
+                    // 해당 정보창 열기
+                    infoWindows[originalIndex].open(map, markers[originalIndex]);
+                    
+                    // 지도로 스크롤
+                    document.getElementById('food-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+                
+                foodListContainer.appendChild(card);
+            });
+        }
+
+        // 초기 리스트 렌더링
+        renderFoodList('전체');
+
+        // 지도 클릭 시 모든 정보창 닫기
+        naver.maps.Event.addListener(map, 'click', function() {
+            infoWindows.forEach(iw => iw.close());
+            venueInfoWindow.close();
+        });
+    </script>
+</body>
+</html>
